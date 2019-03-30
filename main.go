@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -12,9 +11,11 @@ import (
 )
 
 func httpError(w http.ResponseWriter, err error) {
-	w.WriteHeader(500)
-	fmt.Fprintf(w, errorPage)
 	log.Printf("Error: %v", err)
+	w.WriteHeader(500)
+	if newErr := errorPage.ExecuteTemplate(w, "base", nil); newErr != nil {
+		log.Printf("Template Error: %v", newErr)
+	}
 }
 
 func upload(dir string, maxBytes int64, parseBytes int64) http.HandlerFunc {
@@ -46,12 +47,17 @@ func upload(dir string, maxBytes int64, parseBytes int64) http.HandlerFunc {
 		defer newFile.Close()
 
 		io.Copy(newFile, file)
-		fmt.Fprintf(w, successPage)
+		err = successPage.ExecuteTemplate(w, "base", nil)
+		if err != nil {
+			httpError(w, err)
+		}
 	}
 }
 
 func index(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte(indexPage))
+	if err := indexPage.ExecuteTemplate(w, "base", nil); err != nil {
+		httpError(w, err)
+	}
 }
 
 func main() {
@@ -80,73 +86,3 @@ func main() {
 	log.Printf("Listening on: %s", *addr)
 	log.Fatal(s.ListenAndServe())
 }
-
-var indexPage = `
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
-    <title>Uploads</title>
-	<style>
-	    body {
-		    max-width: 960px;
-		}
-	</style>
-  </head>
-  <body>
-    <h1>Upload</h1>
-    <form
-      enctype="multipart/form-data"
-      action="/upload/"
-      method="post"
-    >
-	  <div>
-          <input type="file" name="uploaded_file" />
-	  </div>
-	  <hr/>
-      <input type="submit" value="upload" />
-    </form>
-  </body>
-</html>
-`
-
-var errorPage = `
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
-    <title>Upload Error</title>
-	<style>
-	    body {
-		    max-width: 960px;
-		}
-	</style>
-  </head>
-  <body>
-	<p>Internal error. <a href="/">Upload again.</a></p>
-  </body>
-</html>
-`
-var successPage = `
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
-    <title>Upload Error</title>
-	<style>
-	    body {
-		    max-width: 960px;
-		}
-	</style>
-  </head>
-  <body>
-	<p>Upload done. <a href="/">Upload again.</a></p>
-  </body>
-</html>
-`
